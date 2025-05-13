@@ -1,4 +1,6 @@
 from flask import Flask
+from flask_cors import CORS
+
 from app.services.config import Config
 
 from app.extensions import db, jwt, migrate, mail
@@ -29,6 +31,7 @@ def create_app():
     jwt.init_app(app)
     migrate.init_app(app, db)
     mail.init_app(app)
+    CORS(app, origins=["http://localhost:3000"], supports_credentials=True)
 
     # Enregistrement des blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')

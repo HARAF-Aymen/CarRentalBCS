@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func, extract
 from datetime import datetime
 
+
 from app.extensions import db
 from app.models.user import Utilisateur, RoleEnum
 from app.models.vehicule import Vehicule
