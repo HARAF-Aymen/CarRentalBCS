@@ -325,3 +325,45 @@ def rechercher_contrats():
         })
 
     return jsonify(result), 200
+
+from app.models.demande_mission import DemandeMission  # à importer en haut si pas encore fait
+
+@contrats_bp.route("/", methods=["POST"])
+@jwt_required()
+def create_contrat():
+    """
+    Le Fleet Admin génère un contrat pour une mission approuvée.
+    """
+    user = Utilisateur.query.get(get_jwt_identity())
+    if user is None or user.role != RoleEnum.FLEET_ADMIN:
+        return jsonify({"error": "Accès refusé"}), 403
+
+    data = request.get_json()
+    mission_id = data.get("mission_id")
+    vehicule_id = data.get("vehicule_id")
+
+    mission = DemandeMission.query.get(mission_id)
+    vehicule = Vehicule.query.get(vehicule_id)
+
+    if not mission or mission.statut != "APPROUVEE":
+        return jsonify({"error": "Mission invalide ou non approuvée"}), 400
+
+    if not vehicule or vehicule.is_assigned:
+        return jsonify({"error": "Véhicule non disponible"}), 400
+
+    # Génération du contrat
+    contrat = ContratLocation(
+        location_id=mission.id,
+        utilisateur_id=mission.user_id,
+        vehicule_id=vehicule.id,
+        date_debut=mission.date_debut,
+        date_fin=mission.date_fin,
+    )
+
+    vehicule.is_assigned = True
+
+    db.session.add(contrat)
+    db.session.commit()
+
+    return jsonify({"message": "Contrat généré avec succès", "contrat_id": contrat.id}), 201
+

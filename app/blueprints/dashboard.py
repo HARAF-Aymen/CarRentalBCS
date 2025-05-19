@@ -38,6 +38,19 @@ def fleet_dashboard():
         extract('year', ContratLocation.date_signature) == this_year
     ).scalar() or 0
 
+    # 📊 Jours loués par mois pour l’année en cours (MySQL-compatible)
+    monthly_rentals = []
+    for month in range(1, 13):
+        total_days = db.session.query(
+            func.sum(func.datediff(ContratLocation.date_fin, ContratLocation.date_debut))
+        ).filter(
+            extract('month', ContratLocation.date_signature) == month,
+            extract('year', ContratLocation.date_signature) == this_year
+        ).scalar() or 0
+
+        month_label = datetime(2024, month, 1).strftime('%b')  # Jan, Feb...
+        monthly_rentals.append({"month": month_label, "days": int(total_days)})
+
     # Marques les plus louées
     top_marques = db.session.query(
         Vehicule.marque, func.count(ContratLocation.id).label("nb")
@@ -49,5 +62,7 @@ def fleet_dashboard():
         "unassigned": unassigned,
         "contrats_ce_mois": contrats_ce_mois,
         "jours_loues": jours_loues,
-        "top_marques": [{"marque": m, "count": n} for m, n in top_marques]
+        "top_marques": [{"marque": m, "count": n} for m, n in top_marques],
+        "monthly_rentals": monthly_rentals  # ✅ NEW
     })
+

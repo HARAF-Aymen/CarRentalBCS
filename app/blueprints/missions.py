@@ -1,11 +1,15 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+
 from app.models.demande_mission import DemandeMission
 from app.models.user import Utilisateur, RoleEnum
 from app.models.vehicule import Vehicule
 from app.extensions import db
 from datetime import datetime
 from app.utils.email_utils import send_email
+from app.models.contrat_location import ContratLocation
+
+
 
 
 missions_bp = Blueprint("missions", __name__)
@@ -27,6 +31,7 @@ def create_mission():
     vehicule_id = data.get("vehicule_id")
     date_debut = data.get("date_debut")
     date_fin = data.get("date_fin")
+    motif = data.get("motif")
 
     if not all([vehicule_id, date_debut, date_fin]):
         return jsonify({"error": "Champs manquants"}), 400
@@ -41,7 +46,8 @@ def create_mission():
         user_id=user.id,
         vehicule_id=vehicule_id,
         date_debut=date_debut,
-        date_fin=date_fin
+        date_fin=date_fin,
+        motif=motif
     )
 
     db.session.add(demande)
@@ -138,6 +144,38 @@ def get_mes_missions():
             "date_debut": m.date_debut.strftime("%Y-%m-%d"),
             "date_fin": m.date_fin.strftime("%Y-%m-%d"),
             "status": m.statut,
+            "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S")
+        })
+
+    return jsonify(result), 200
+
+@missions_bp.route("/approved_without_contract", methods=["GET"])
+@jwt_required()
+def get_approved_without_contract():
+    """
+    Récupère les missions approuvées qui n’ont pas encore de contrat associé.
+    Accessible uniquement au Fleet Admin.
+    """
+    user = Utilisateur.query.get(get_jwt_identity())
+    if user is None or user.role != RoleEnum.FLEET_ADMIN:
+        return jsonify({"error": "Accès refusé"}), 403
+
+    subquery = db.session.query(ContratLocation.location_id)
+    missions = (
+        DemandeMission.query
+        .filter(DemandeMission.statut == "APPROUVEE")
+        .filter(~DemandeMission.id.in_(subquery))
+        .all()
+    )
+
+    result = []
+    for m in missions:
+        result.append({
+            "id": m.id,
+            "vehicule_id": m.vehicule_id,
+            "user_id": m.user_id,
+            "date_debut": m.date_debut.strftime("%Y-%m-%d"),
+            "date_fin": m.date_fin.strftime("%Y-%m-%d"),
             "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
 

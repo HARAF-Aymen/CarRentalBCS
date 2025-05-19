@@ -12,6 +12,7 @@ class DemandeMission(db.Model):
     date_fin = db.Column(db.Date, nullable=False)
     statut = db.Column(db.String(20), default="EN_ATTENTE")  # EN_ATTENTE, APPROUVEE, REFUSEE
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    motif = db.Column(db.Text, nullable=True)
 
     utilisateur = db.relationship("Utilisateur", backref="missions")
     vehicule = db.relationship("Vehicule", backref="missions")
