@@ -144,6 +144,7 @@ def get_mes_missions():
             "date_debut": m.date_debut.strftime("%Y-%m-%d"),
             "date_fin": m.date_fin.strftime("%Y-%m-%d"),
             "status": m.statut,
+            "motif": m.motif,
             "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S")
         })
 

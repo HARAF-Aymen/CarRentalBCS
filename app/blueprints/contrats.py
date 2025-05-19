@@ -168,12 +168,16 @@ def get_contrat_details(contrat_id):
 def telecharger_contrat_pdf(contrat_id):
     from reportlab.lib.utils import ImageReader
     user = Utilisateur.query.get(get_jwt_identity())
-    if user is None or user.role != RoleEnum.FLEET_ADMIN:
-        return jsonify({"error": "Accès refusé"}), 403
+    if user is None:
+        return jsonify({"error": "Utilisateur non trouvé"}), 403
 
     contrat = ContratLocation.query.get(contrat_id)
     if not contrat:
         return jsonify({"error": "Contrat introuvable"}), 404
+
+    # ✅ Autoriser si FLEET_ADMIN ou utilisateur concerné
+    if user.role != RoleEnum.FLEET_ADMIN and contrat.utilisateur_id != user.id:
+        return jsonify({"error": "Vous n'avez pas accès à ce contrat"}), 403
 
     vehicule = contrat.vehicule
     fournisseur = vehicule.fournisseur if vehicule else None
@@ -275,7 +279,56 @@ def telecharger_pdf_fournisseur(contrat_id):
     # 🔍 Recherche du fichier PDF
     pdf_path = os.path.join("contracts", f"contrat_{contrat.id}.pdf")
     if not os.path.exists(pdf_path):
-        return jsonify({"error": "Fichier PDF non trouvé"}), 404
+        # ✅ On régénère le PDF si nécessaire
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+
+        pdf_dir = os.path.join(os.getcwd(), 'contracts')
+        os.makedirs(pdf_dir, exist_ok=True)
+
+        p = canvas.Canvas(pdf_path, pagesize=A4)
+        width, height = A4
+        y = height - 50
+
+        def ligne(text, y, bold=False):
+            p.setFont("Helvetica-Bold" if bold else "Helvetica", 12)
+            p.drawString(50, y, text)
+            return y - 20
+
+        logo_path = os.path.join("static", "logo.png")
+        if os.path.exists(logo_path):
+            logo = ImageReader(logo_path)
+            p.drawImage(logo, 50, y - 80, width=100, preserveAspectRatio=True, mask='auto')
+            y -= 90
+
+        p.setFont("Helvetica-Bold", 16)
+        p.drawCentredString(width / 2, y, "CONTRAT DE LOCATION DE VÉHICULE")
+        y -= 40
+
+        y = ligne(f"Contrat ID : {contrat.id}", y)
+        y = ligne(f"Date de signature : {contrat.date_signature.strftime('%Y-%m-%d %H:%M:%S')}", y)
+        y = ligne(f"Statut : {contrat.statut}", y)
+        y = ligne(f"Période : du {contrat.date_debut.strftime('%Y-%m-%d')} au {contrat.date_fin.strftime('%Y-%m-%d')}",
+                  y)
+
+        y = ligne("Informations de l'utilisateur :", y, bold=True)
+        y = ligne(f"Nom : {contrat.utilisateur.nom}", y)
+        y = ligne(f"Email : {contrat.utilisateur.email}", y)
+
+        y = ligne("Informations du véhicule :", y, bold=True)
+        y = ligne(f"Marque : {vehicule.marque}", y)
+        y = ligne(f"Modèle : {vehicule.modele}", y)
+        y = ligne(f"Carburant : {vehicule.carburant}", y)
+        y = ligne(f"Kilométrage : {vehicule.kilometrage} km", y)
+        y = ligne(f"Prix par jour : {vehicule.prix_jour} MAD", y)
+
+        y = ligne("Informations du fournisseur :", y, bold=True)
+        y = ligne(f"Nom : {user.nom}", y)
+        y = ligne(f"Email : {user.email}", y)
+
+        p.showPage()
+        p.save()
 
     return send_file(pdf_path, as_attachment=True, download_name=os.path.basename(pdf_path), mimetype='application/pdf')
 
