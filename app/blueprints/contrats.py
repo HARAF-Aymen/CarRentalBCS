@@ -251,7 +251,7 @@ def telecharger_contrat_pdf(contrat_id):
 
     send_email(
         subject="Contrat de location généré",
-        recipient=contrat.utilisateur.email,
+        recipient=contrat.utilisateur.email,  # ✅ correct
         body=email_body
     )
 

@@ -115,11 +115,16 @@ def decision_mission(mission_id):
     if utilisateur:
         send_email(
             subject="Mise à jour de votre demande de mission",
-            recipients=[utilisateur.email],
+            recipient=utilisateur.email,
             body=f"Votre demande de mission du {mission.date_debut.strftime('%Y-%m-%d')} au {mission.date_fin.strftime('%Y-%m-%d')} a été {decision.lower()}."
         )
 
-    return jsonify({"message": f"Demande {decision.lower()} avec succès"}), 200
+    return jsonify({
+        "message": f"Demande {decision.lower()} avec succès",
+        "vehicule_id": mission.vehicule_id if decision == "APPROUVEE" else None,
+        "mission_id": mission.id
+    }), 200
+
 
 @missions_bp.route("/mes", methods=["GET"])
 @jwt_required()
