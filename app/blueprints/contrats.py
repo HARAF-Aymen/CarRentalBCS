@@ -24,7 +24,8 @@ contrats_bp = Blueprint("contrats", __name__)
 @jwt_required()
 def get_contrats():
     """
-    Permet au FLEET_ADMIN ou au FOURNISSEUR de voir les contrats qu’il a générés ou reçus.
+    Fleet Admin voit tous, Fournisseur voit les siens.
+    Fournit utilisateur.nom et vehicule.modele
     """
     current_user_id = get_jwt_identity()
     user = Utilisateur.query.get(current_user_id)
@@ -48,8 +49,14 @@ def get_contrats():
     for c in contrats:
         result.append({
             "id": c.id,
-            "vehicule_id": c.vehicule_id,
-            "utilisateur_id": c.utilisateur_id,
+            "vehicule": {
+                "id": c.vehicule.id,
+                "modele": c.vehicule.modele
+            } if c.vehicule else None,
+            "utilisateur": {
+                "id": c.utilisateur.id,
+                "nom": c.utilisateur.nom
+            } if c.utilisateur else None,
             "date_debut": c.date_debut.strftime("%Y-%m-%d"),
             "date_fin": c.date_fin.strftime("%Y-%m-%d"),
             "statut": c.statut,
@@ -57,6 +64,7 @@ def get_contrats():
         })
 
     return jsonify(result), 200
+
 
 # 📌 PUT /api/contrats/<id>/assigner : Assignation par Fleet Admin
 @contrats_bp.route("/<int:contrat_id>/assigner", methods=["PUT"])

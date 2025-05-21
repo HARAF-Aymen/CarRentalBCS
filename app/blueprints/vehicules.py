@@ -112,6 +112,7 @@ def get_all_vehicules():
         "kilometrage": v.kilometrage,
         "prix_jour": v.prix_jour,
         "image_path": v.image_path,
+        "is_assigned": v.is_assigned,
         "fournisseur": {
             "id": v.fournisseur.id,
             "nom": v.fournisseur.nom,

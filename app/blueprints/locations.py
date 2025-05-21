@@ -163,32 +163,41 @@ def generer_contrat(location_id):
 @jwt_required()
 def get_locations_acceptees_sans_contrat():
     """
-    Retourne les demandes de location acceptées sans contrat encore généré.
+    Retourne les demandes de location acceptées sans contrat généré,
+    avec détails utilisateur.nom et vehicule.modele
     Accessible uniquement au Fleet Admin.
     """
     user = Utilisateur.query.get(get_jwt_identity())
     if user is None or user.role != RoleEnum.FLEET_ADMIN:
         return jsonify({"error": "Accès refusé"}), 403
 
-    # On filtre les locations acceptées sans contrat existant
     locations = (
         DemandeLocation.query
         .filter_by(statut="ACCEPTEE")
-        .outerjoin(ContratLocation)
-        .filter(ContratLocation.id == None)  # Pas de contrat généré
+        .outerjoin(ContratLocation, DemandeLocation.id == ContratLocation.location_id)
+        .filter(ContratLocation.id == None)
         .all()
     )
 
     result = []
     for loc in locations:
         mission = loc.mission
+        utilisateur = mission.utilisateur
+        vehicule = mission.vehicule
+
         result.append({
             "location_id": loc.id,
             "mission_id": mission.id,
-            "vehicule_id": mission.vehicule_id,
-            "user_id": mission.user_id,
             "date_debut": mission.date_debut.strftime("%Y-%m-%d"),
-            "date_fin": mission.date_fin.strftime("%Y-%m-%d")
+            "date_fin": mission.date_fin.strftime("%Y-%m-%d"),
+            "user": {
+                "id": utilisateur.id,
+                "nom": utilisateur.nom
+            } if utilisateur else None,
+            "vehicule": {
+                "id": vehicule.id,
+                "modele": vehicule.modele
+            } if vehicule else None
         })
 
     return jsonify(result), 200

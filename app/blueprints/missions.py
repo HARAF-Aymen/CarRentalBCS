@@ -57,12 +57,10 @@ def create_mission():
 
 
 # 📌 Route : Récupérer toutes les demandes de mission (FLEET_ADMIN)
+
 @missions_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_all_missions():
-    """
-    Accessible uniquement à l’admin pour consulter toutes les demandes de mission.
-    """
     current_user_id = get_jwt_identity()
     user = Utilisateur.query.get(current_user_id)
 
@@ -71,18 +69,29 @@ def get_all_missions():
 
     missions = DemandeMission.query.all()
 
-    return jsonify([
-        {
+    result = []
+    for m in missions:
+        vehicule = Vehicule.query.get(m.vehicule_id)
+        user = Utilisateur.query.get(m.user_id)
+
+        result.append({
             "id": m.id,
-            "vehicule_id": m.vehicule_id,
-            "user_id": m.user_id,
+            "vehicule": {
+                "id": vehicule.id,
+                "modele": vehicule.modele
+            } if vehicule else None,
+            "user": {
+                "id": user.id,
+                "nom": user.nom
+            } if user else None,
             "date_debut": m.date_debut.strftime("%Y-%m-%d"),
             "date_fin": m.date_fin.strftime("%Y-%m-%d"),
             "status": m.statut,
             "created_at": m.created_at.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        for m in missions
-    ]), 200
+        })
+
+    return jsonify(result), 200
+
 
 # 📌 Route : Prendre une décision sur une mission (FLEET_ADMIN)
 @missions_bp.route("/<int:mission_id>/decision", methods=["PUT"])
