@@ -101,9 +101,7 @@ def assigner_vehicule(contrat_id):
 @contrats_bp.route("/mes", methods=["GET"])
 @jwt_required()
 def get_mes_contrats():
-    """
-    Permet à un utilisateur simple de consulter ses propres contrats.
-    """
+
     user_id = get_jwt_identity()
     user = Utilisateur.query.get(user_id)
 
@@ -117,9 +115,11 @@ def get_mes_contrats():
 
     result = []
     for c in contrats:
+        vehicule = Vehicule.query.get(c.vehicule_id)
         result.append({
             "id": c.id,
             "vehicule_id": c.vehicule_id,
+            "vehicule_modele": vehicule.modele if vehicule else "Inconnu",
             "date_debut": c.date_debut.strftime("%Y-%m-%d"),
             "date_fin": c.date_fin.strftime("%Y-%m-%d"),
             "statut": c.statut,
@@ -269,77 +269,99 @@ def telecharger_contrat_pdf(contrat_id):
 @contrats_bp.route("/<int:contrat_id>/pdf-fournisseur", methods=["GET"])
 @jwt_required()
 def telecharger_pdf_fournisseur(contrat_id):
-    """
-    Permet à un fournisseur de télécharger le contrat PDF si le véhicule lui appartient.
-    """
-    user = Utilisateur.query.get(get_jwt_identity())
-    if user is None or user.role != RoleEnum.FOURNISSEUR:
-        return jsonify({"error": "Accès réservé aux fournisseurs"}), 403
+    try:
+        user = Utilisateur.query.get(get_jwt_identity())
+        if user is None or user.role != RoleEnum.FOURNISSEUR:
+            return jsonify({"error": "Accès réservé aux fournisseurs"}), 403
 
-    contrat = ContratLocation.query.get(contrat_id)
-    if not contrat:
-        return jsonify({"error": "Contrat introuvable"}), 404
+        contrat = ContratLocation.query.get(contrat_id)
+        if not contrat:
+            return jsonify({"error": "Contrat introuvable"}), 404
 
-    vehicule = contrat.vehicule
-    if vehicule.fournisseur_id != user.id:
-        return jsonify({"error": "Ce contrat n'est pas lié à vos véhicules"}), 403
+        vehicule = contrat.vehicule
+        utilisateur = contrat.utilisateur
 
-    # 🔍 Recherche du fichier PDF
-    pdf_path = os.path.join("contracts", f"contrat_{contrat.id}.pdf")
-    if not os.path.exists(pdf_path):
-        # ✅ On régénère le PDF si nécessaire
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.utils import ImageReader
+        if not vehicule or not utilisateur:
+            return jsonify({"error": "Contrat invalide : données manquantes"}), 500
 
-        pdf_dir = os.path.join(os.getcwd(), 'contracts')
+        if vehicule.fournisseur_id != user.id:
+            return jsonify({"error": "Ce contrat n'est pas lié à vos véhicules"}), 403
+
+        pdf_dir = os.path.abspath("contracts")
         os.makedirs(pdf_dir, exist_ok=True)
+        pdf_path = os.path.join(pdf_dir, f"contrat_{contrat.id}.pdf")
 
-        p = canvas.Canvas(pdf_path, pagesize=A4)
-        width, height = A4
-        y = height - 50
+        if not os.path.exists(pdf_path):
+            p = canvas.Canvas(pdf_path, pagesize=A4)
+            width, height = A4
+            margin = 50
+            y = height - 60
 
-        def ligne(text, y, bold=False):
-            p.setFont("Helvetica-Bold" if bold else "Helvetica", 12)
-            p.drawString(50, y, text)
-            return y - 20
+            def draw_line(y_pos):
+                p.setStrokeColorRGB(0.7, 0.7, 0.7)
+                p.line(margin, y_pos, width - margin, y_pos)
 
-        logo_path = os.path.join("static", "logo.png")
-        if os.path.exists(logo_path):
-            logo = ImageReader(logo_path)
-            p.drawImage(logo, 50, y - 80, width=100, preserveAspectRatio=True, mask='auto')
-            y -= 90
+            def ligne(text, y_pos, bold=False, size=12):
+                p.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+                p.drawString(margin, y_pos, text)
+                return y_pos - 18
 
-        p.setFont("Helvetica-Bold", 16)
-        p.drawCentredString(width / 2, y, "CONTRAT DE LOCATION DE VÉHICULE")
-        y -= 40
+            # Logo
+            logo_path = os.path.join("static", "logo.png")
+            if os.path.exists(logo_path):
+                logo = ImageReader(logo_path)
+                p.drawImage(logo, margin, y - 60, width=100, preserveAspectRatio=True, mask='auto')
+                y -= 80
 
-        y = ligne(f"Contrat ID : {contrat.id}", y)
-        y = ligne(f"Date de signature : {contrat.date_signature.strftime('%Y-%m-%d %H:%M:%S')}", y)
-        y = ligne(f"Statut : {contrat.statut}", y)
-        y = ligne(f"Période : du {contrat.date_debut.strftime('%Y-%m-%d')} au {contrat.date_fin.strftime('%Y-%m-%d')}",
-                  y)
+            # Titre
+            p.setFont("Helvetica-Bold", 16)
+            p.drawCentredString(width / 2, y, "📄 CONTRAT DE LOCATION DE VÉHICULE")
+            y -= 30
+            draw_line(y)
+            y -= 20
 
-        y = ligne("Informations de l'utilisateur :", y, bold=True)
-        y = ligne(f"Nom : {contrat.utilisateur.nom}", y)
-        y = ligne(f"Email : {contrat.utilisateur.email}", y)
+            y = ligne(f"📌 Contrat ID : {contrat.id}", y)
+            y = ligne(f"🗓️ Signature : {contrat.date_signature.strftime('%Y-%m-%d %H:%M:%S')}", y)
+            y = ligne(f"⏳ Période : du {contrat.date_debut.strftime('%Y-%m-%d')} au {contrat.date_fin.strftime('%Y-%m-%d')}", y)
+            y = ligne(f"📝 Statut : {contrat.statut}", y)
+            y -= 10
+            draw_line(y)
+            y -= 20
 
-        y = ligne("Informations du véhicule :", y, bold=True)
-        y = ligne(f"Marque : {vehicule.marque}", y)
-        y = ligne(f"Modèle : {vehicule.modele}", y)
-        y = ligne(f"Carburant : {vehicule.carburant}", y)
-        y = ligne(f"Kilométrage : {vehicule.kilometrage} km", y)
-        y = ligne(f"Prix par jour : {vehicule.prix_jour} MAD", y)
+            y = ligne("👤 Utilisateur :", y, bold=True)
+            y = ligne(f"Nom : {utilisateur.nom}", y)
+            y = ligne(f"Email : {utilisateur.email}", y)
+            y -= 10
+            draw_line(y)
+            y -= 20
 
-        y = ligne("Informations du fournisseur :", y, bold=True)
-        y = ligne(f"Nom : {user.nom}", y)
-        y = ligne(f"Email : {user.email}", y)
+            y = ligne("🚘 Véhicule :", y, bold=True)
+            y = ligne(f"Marque : {vehicule.marque}", y)
+            y = ligne(f"Modèle : {vehicule.modele}", y)
+            y = ligne(f"Carburant : {vehicule.carburant}", y)
+            y = ligne(f"Kilométrage : {vehicule.kilometrage} km", y)
+            y = ligne(f"Prix / jour : {vehicule.prix_jour} MAD", y)
+            y -= 10
+            draw_line(y)
+            y -= 20
 
-        p.showPage()
-        p.save()
+            y = ligne("🏢 Fournisseur :", y, bold=True)
+            y = ligne(f"Nom : {user.nom}", y)
+            y = ligne(f"Email : {user.email}", y)
 
-    return send_file(pdf_path, as_attachment=True, download_name=os.path.basename(pdf_path), mimetype='application/pdf')
+            # Pied de page
+            p.setFont("Helvetica-Oblique", 10)
+            p.setFillColorRGB(0.5, 0.5, 0.5)
+            p.drawCentredString(width / 2, 40, f"Document généré automatiquement le {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+            p.showPage()
+            p.save()
+
+        return send_file(pdf_path, as_attachment=True, download_name=os.path.basename(pdf_path), mimetype='application/pdf')
+
+    except Exception as e:
+        print(f"Erreur serveur lors de la génération PDF : {e}")
+        return jsonify({"error": "Erreur interne lors de la génération du PDF"}), 500
 @contrats_bp.route("/recherche", methods=["GET"])
 @jwt_required()
 def rechercher_contrats():

@@ -14,7 +14,7 @@ from app.models.contrat_location import ContratLocation
 
 missions_bp = Blueprint("missions", __name__)
 
-# 📌 Route : Créer une demande de mission (UTILISATEUR)
+#  Route : Créer une demande de mission (UTILISATEUR)
 @missions_bp.route("/", methods=["POST"])
 @jwt_required()
 def create_mission():
@@ -56,7 +56,7 @@ def create_mission():
     return jsonify({"message": "Demande de mission envoyée avec succès"}), 201
 
 
-# 📌 Route : Récupérer toutes les demandes de mission (FLEET_ADMIN)
+#  Route : Récupérer toutes les demandes de mission (FLEET_ADMIN)
 
 @missions_bp.route("/", methods=["GET"])
 @jwt_required()
@@ -93,13 +93,11 @@ def get_all_missions():
     return jsonify(result), 200
 
 
-# 📌 Route : Prendre une décision sur une mission (FLEET_ADMIN)
+#  Route : Prendre une décision sur une mission (FLEET_ADMIN)
 @missions_bp.route("/<int:mission_id>/decision", methods=["PUT"])
 @jwt_required()
 def decision_mission(mission_id):
-    """
-    Le fleet admin approuve ou refuse une demande de mission.
-    """
+
     current_user_id = get_jwt_identity()
     user = Utilisateur.query.get(current_user_id)
 
@@ -119,7 +117,7 @@ def decision_mission(mission_id):
     mission.statut = decision
     db.session.commit()
 
-    # ✉️ Notification à l'utilisateur
+    # Notification à l'utilisateur
     utilisateur = Utilisateur.query.get(mission.user_id)
     if utilisateur:
         send_email(
@@ -138,10 +136,7 @@ def decision_mission(mission_id):
 @missions_bp.route("/mes", methods=["GET"])
 @jwt_required()
 def get_mes_missions():
-    """
-    Permet à un utilisateur simple de consulter toutes ses demandes de mission,
-    qu’elles soient approuvées, refusées ou en attente.
-    """
+
     user_id = get_jwt_identity()
     user = Utilisateur.query.get(user_id)
 
@@ -152,9 +147,11 @@ def get_mes_missions():
 
     result = []
     for m in missions:
+        vehicule = Vehicule.query.get(m.vehicule_id)  # Récupération du modèle
         result.append({
             "id": m.id,
             "vehicule_id": m.vehicule_id,
+            "vehicule_modele": vehicule.modele if vehicule else "Inconnu",
             "date_debut": m.date_debut.strftime("%Y-%m-%d"),
             "date_fin": m.date_fin.strftime("%Y-%m-%d"),
             "status": m.statut,
@@ -167,10 +164,7 @@ def get_mes_missions():
 @missions_bp.route("/approved_without_contract", methods=["GET"])
 @jwt_required()
 def get_approved_without_contract():
-    """
-    Récupère les missions approuvées qui n’ont pas encore de contrat associé.
-    Accessible uniquement au Fleet Admin.
-    """
+
     user = Utilisateur.query.get(get_jwt_identity())
     if user is None or user.role != RoleEnum.FLEET_ADMIN:
         return jsonify({"error": "Accès refusé"}), 403
