@@ -147,11 +147,15 @@ def get_mes_missions():
 
     result = []
     for m in missions:
-        vehicule = Vehicule.query.get(m.vehicule_id)  # Récupération du modèle
+        v = Vehicule.query.get(m.vehicule_id)  # Récupération du modèle
         result.append({
             "id": m.id,
-            "vehicule_id": m.vehicule_id,
-            "vehicule_modele": vehicule.modele if vehicule else "Inconnu",
+            "marque": v.marque,
+            "modele": v.modele,
+            "carburant": v.carburant,
+            "kilometrage": v.kilometrage,
+            "prix_jour": v.prix_jour,
+            "image_path": v.image_path,
             "date_debut": m.date_debut.strftime("%Y-%m-%d"),
             "date_fin": m.date_fin.strftime("%Y-%m-%d"),
             "status": m.statut,

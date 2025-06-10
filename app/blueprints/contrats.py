@@ -51,7 +51,12 @@ def get_contrats():
             "id": c.id,
             "vehicule": {
                 "id": c.vehicule.id,
-                "modele": c.vehicule.modele
+                "marque": c.vehicule.marque,
+                "modele": c.vehicule.modele,
+                "carburant": c.vehicule.carburant,
+                "kilometrage": c.vehicule.kilometrage,
+                "prix_jour": c.vehicule.prix_jour,
+                "image_path": c.vehicule.image_path
             } if c.vehicule else None,
             "utilisateur": {
                 "id": c.utilisateur.id,
@@ -115,11 +120,15 @@ def get_mes_contrats():
 
     result = []
     for c in contrats:
-        vehicule = Vehicule.query.get(c.vehicule_id)
+        v = Vehicule.query.get(c.vehicule_id)
         result.append({
             "id": c.id,
-            "vehicule_id": c.vehicule_id,
-            "vehicule_modele": vehicule.modele if vehicule else "Inconnu",
+            "marque": v.marque,
+            "modele": v.modele,
+            "carburant": v.carburant,
+            "kilometrage": v.kilometrage,
+            "prix_jour": v.prix_jour,
+            "image_path": v.image_path,
             "date_debut": c.date_debut.strftime("%Y-%m-%d"),
             "date_fin": c.date_fin.strftime("%Y-%m-%d"),
             "statut": c.statut,
@@ -365,10 +374,7 @@ def telecharger_pdf_fournisseur(contrat_id):
 @contrats_bp.route("/recherche", methods=["GET"])
 @jwt_required()
 def rechercher_contrats():
-    """
-    Filtrer les contrats selon statut, utilisateur, fournisseur, ou date.
-    Accessible uniquement au Fleet Admin.
-    """
+
     user = Utilisateur.query.get(get_jwt_identity())
     if user is None or user.role != RoleEnum.FLEET_ADMIN:
         return jsonify({"error": "Accès refusé"}), 403

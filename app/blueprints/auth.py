@@ -57,6 +57,32 @@ def login():
 
     return jsonify(access_token=access_token, refresh_token=refresh_token, role=user.role.value), 200
 
+@auth_bp.route('/login/mobile', methods=['POST'])
+def mobile_login():
+    data = request.get_json(force=True)
+    email    = data.get("email")
+    password = data.get("password")
+
+    if not email or not password:
+        return jsonify({"message": "Champs requis"}), 400
+
+    user = Utilisateur.query.filter_by(email=email).first()
+    if not user or not user.check_password(password):
+        return jsonify({"message": "Email ou mot de passe incorrect"}), 401
+
+    # ✅ Only allow USER and FOURNISSEUR
+    if user.role == RoleEnum.FLEET_ADMIN:
+        return jsonify({"message": "Connexion interdite pour les administrateurs via l'application mobile"}), 403
+    claims = {"role": user.role.value}
+    access_token  = create_access_token(identity=user.id, additional_claims=claims)
+    refresh_token = create_refresh_token(identity=user.id)
+
+    return jsonify({
+        "access_token":access_token,
+        "id": user.id,
+        "email": user.email,
+        "role": user.role.value.lower()  # e.g., "fournisseur" or "user"
+    }), 200
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()

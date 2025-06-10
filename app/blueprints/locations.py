@@ -65,7 +65,7 @@ def get_demandes_recues():
     result = [{
         "id": d.id,
         "mission_id": d.mission_id,
-        "vehicule_id": d.vehicule_id,
+        "vehicule_modele": d.vehicule.modele,
         "statut": d.statut,
         "date_reception": d.created_at.strftime("%Y-%m-%d %H:%M:%S")
     } for d in demandes]

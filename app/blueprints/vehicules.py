@@ -98,7 +98,7 @@ def delete_vehicule(vehicule_id):
 @jwt_required()
 def get_all_vehicules():
     user = Utilisateur.query.get(get_jwt_identity())
-
+    print(user)
     if user.role == RoleEnum.FOURNISSEUR:
         vehicules = Vehicule.query.filter_by(fournisseur_id=user.id).all()
     else:
