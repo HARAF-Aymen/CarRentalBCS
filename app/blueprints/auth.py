@@ -41,7 +41,7 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json(force=True)
-    email    = data.get("email")
+    email = data.get("email")
     password = data.get("password")
 
     if not email or not password:
@@ -51,16 +51,27 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({"message": "Email ou mot de passe incorrect"}), 401
 
+    if user.archiver:
+        return jsonify({"message": "Ce compte a été archivé. Veuillez contacter l'administrateur."}), 403
+
     claims = {"role": user.role.value}
-    access_token  = create_access_token(identity=user.id, additional_claims=claims)
+    access_token = create_access_token(identity=user.id, additional_claims=claims)
     refresh_token = create_refresh_token(identity=user.id)
 
-    return jsonify(access_token=access_token, refresh_token=refresh_token, role=user.role.value), 200
+    info_user = {
+        "nom": user.nom,
+        "email": user.email,
+        "role": user.role.value,
+        "id": user.id,
+    }
+
+    return jsonify(access_token=access_token, refresh_token=refresh_token, info_user=info_user), 200
+
 
 @auth_bp.route('/login/mobile', methods=['POST'])
 def mobile_login():
     data = request.get_json(force=True)
-    email    = data.get("email")
+    email = data.get("email")
     password = data.get("password")
 
     if not email or not password:
@@ -70,19 +81,23 @@ def mobile_login():
     if not user or not user.check_password(password):
         return jsonify({"message": "Email ou mot de passe incorrect"}), 401
 
-    # ✅ Only allow USER and FOURNISSEUR
+    if user.archiver:
+        return jsonify({"message": "Ce compte a été archivé. Veuillez contacter l'administrateur."}), 403
+
     if user.role == RoleEnum.FLEET_ADMIN:
         return jsonify({"message": "Connexion interdite pour les administrateurs via l'application mobile"}), 403
+
     claims = {"role": user.role.value}
-    access_token  = create_access_token(identity=user.id, additional_claims=claims)
+    access_token = create_access_token(identity=user.id, additional_claims=claims)
     refresh_token = create_refresh_token(identity=user.id)
 
     return jsonify({
-        "access_token":access_token,
+        "access_token": access_token,
         "id": user.id,
         "email": user.email,
-        "role": user.role.value.lower()  # e.g., "fournisseur" or "user"
+        "role": user.role.value.lower()
     }), 200
+
 
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()
@@ -109,3 +124,83 @@ def admin_only():
     if claims.get("role") != "FLEET_ADMIN":
         return jsonify({"message": "Accès réservé au Fleet Admin"}), 403
     return jsonify({"message": "Bienvenue, Fleet Admin"}), 200
+
+
+@auth_bp.route("/utilisateurs", methods=["GET"])
+@jwt_required()
+def get_all_users():
+    current_user_id = get_jwt_identity()
+    user = Utilisateur.query.get(current_user_id)
+
+    if user.role != RoleEnum.FLEET_ADMIN:
+        return jsonify({"error": "Accès refusé"}), 403
+
+    role_param = request.args.get("role")
+    query = Utilisateur.query
+
+    if role_param:
+        role_map = {
+            "user": RoleEnum.USER,
+            "fournisseur": RoleEnum.FOURNISSEUR,
+            "fleet_admin": RoleEnum.FLEET_ADMIN
+        }
+        role_enum = role_map.get(role_param.lower())
+        if not role_enum:
+            return jsonify({"error": f"Rôle invalide : {role_param}. Choisissez parmi: user, fournisseur, fleet_admin"}), 400
+
+        query = query.filter_by(role=role_enum)
+
+    utilisateurs = query.all()
+
+    return jsonify([
+        {
+            "id": u.id,
+            "nom": u.nom,
+            "email": u.email,
+            "role": u.role.value,
+            "archiver": u.archiver,
+
+        }
+        for u in utilisateurs
+    ])
+
+
+@auth_bp.route("/utilisateurs/<int:user_id>/archiver", methods=["PUT"])
+@jwt_required()
+def archiver_utilisateur(user_id):
+    current_user = Utilisateur.query.get(get_jwt_identity())
+
+    if current_user.role != RoleEnum.FLEET_ADMIN:
+        return jsonify({"error": "Accès refusé"}), 403
+
+    user = Utilisateur.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+    if user.archiver:
+        return jsonify({"message": "Utilisateur déjà archivé"}), 400
+
+    user.archiver = True
+    db.session.commit()
+
+    return jsonify({"message": f"Utilisateur {user.nom} archivé avec succès."}), 200
+
+@auth_bp.route("/utilisateurs/<int:user_id>/desarchiver", methods=["PUT"])
+@jwt_required()
+def desarchiver_utilisateur(user_id):
+    current_user = Utilisateur.query.get(get_jwt_identity())
+
+    if current_user.role != RoleEnum.FLEET_ADMIN:
+        return jsonify({"error": "Accès refusé"}), 403
+
+    user = Utilisateur.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Utilisateur non trouvé"}), 404
+
+    if not user.archiver:
+        return jsonify({"message": "Utilisateur déjà actif"}), 400
+
+    user.archiver = False
+    db.session.commit()
+
+    return jsonify({"message": f"Utilisateur {user.nom} désarchivé avec succès."}), 200

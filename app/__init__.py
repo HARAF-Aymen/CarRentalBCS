@@ -16,6 +16,7 @@ from app.blueprints.locations import locations_bp
 from app.blueprints.contrats import contrats_bp
 from app.blueprints.dashboard import dashboard_bp
 
+
 # Models (pour les migrations automatiques)
 from app.models import demande_location
 from app.models.demande_mission import DemandeMission
@@ -57,7 +58,7 @@ def create_app():
     migrate.init_app(app, db)
     mail.init_app(app)
     # ✅ CORS FIX
-    CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+    CORS(app, resources={r"/api/*": {"origins": "http://192.168.100.110:3000"}}, supports_credentials=True)
 
 
     # Enregistrement des blueprints
@@ -76,3 +77,4 @@ def create_app():
         start_scheduler()
 
     return app
+

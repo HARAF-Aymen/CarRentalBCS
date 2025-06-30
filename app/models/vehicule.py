@@ -15,6 +15,10 @@ class Vehicule(db.Model):
     kilometrage = db.Column(db.Integer, nullable=False)
     prix_jour = db.Column(db.Float, nullable=False)
     image_path = db.Column(db.String(255))
+    details_json = db.Column(db.JSON)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    archiver = db.Column(db.Boolean, nullable=False, default=False)
 
     is_assigned = db.Column(db.Boolean, default=False, nullable=False)  # 🆕
 
